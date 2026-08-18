@@ -535,7 +535,7 @@ export const settingsSearchIndex: SettingSearchRecord[] = [
     tab: "ai",
     section: "Authentication",
     label: "xAI Usage Meter",
-    description: "Management API key and team ID for Grok prepaid usage in the footer",
+    description: "Grok prepaid usage in the footer using your signed-in xAI session",
     keywords: [
       "xai",
       "grok",

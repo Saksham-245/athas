@@ -15,6 +15,7 @@ const sampleUsage: XaiUsageSummary = {
   effectiveSpendingLimitCents: 20000,
   defaultCreditsCents: 0,
   fetchedAt: Date.now(),
+  source: "session",
 };
 
 describe("xai usage service helpers", () => {

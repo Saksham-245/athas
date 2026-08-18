@@ -1,9 +1,8 @@
 import { LightningIcon as Lightning } from "@phosphor-icons/react";
 import { useEffect, useMemo, useState } from "react";
 import {
-  fetchXaiTeamUsage,
+  fetchXaiUsage,
   formatXaiUsageLabel,
-  getXaiManagementApiKey,
   getXaiUsageProgress,
   type XaiUsageSummary,
 } from "@/features/ai/services/xai-usage-service";
@@ -18,7 +17,6 @@ import Tooltip from "@/ui/tooltip";
 
 export function AiUsageFooterItem() {
   const aiProviderId = useSettingsStore((state) => state.settings.aiProviderId);
-  const xaiTeamId = useSettingsStore((state) => state.settings.xaiTeamId);
   const [usage, setUsage] = useState<XaiUsageSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -37,26 +35,7 @@ export function AiUsageFooterItem() {
     const loadUsage = async () => {
       setIsLoading(true);
       try {
-        const managementKey = await getXaiManagementApiKey();
-        if (!managementKey) {
-          if (!cancelled) {
-            setUsage(null);
-            setError("Add an xAI management key in Settings → AI");
-          }
-          return;
-        }
-        if (!xaiTeamId.trim()) {
-          if (!cancelled) {
-            setUsage(null);
-            setError("Add an xAI team ID in Settings → AI");
-          }
-          return;
-        }
-
-        const nextUsage = await fetchXaiTeamUsage({
-          teamId: xaiTeamId,
-          managementApiKey: managementKey,
-        });
+        const nextUsage = await fetchXaiUsage();
         if (!cancelled) {
           setUsage(nextUsage);
           setError(null);
@@ -64,7 +43,11 @@ export function AiUsageFooterItem() {
       } catch (loadError) {
         if (!cancelled) {
           setUsage(null);
-          setError(loadError instanceof Error ? loadError.message : "Failed to load xAI usage");
+          setError(
+            loadError instanceof Error
+              ? loadError.message
+              : "Failed to load xAI usage",
+          );
         }
       } finally {
         if (!cancelled) {
@@ -82,7 +65,7 @@ export function AiUsageFooterItem() {
       cancelled = true;
       window.clearInterval(interval);
     };
-  }, [shouldShow, xaiTeamId]);
+  }, [shouldShow]);
 
   const progress = useMemo(() => getXaiUsageProgress(usage), [usage]);
   const label = useMemo(() => formatXaiUsageLabel(usage), [usage]);
@@ -100,10 +83,11 @@ export function AiUsageFooterItem() {
         usage.billingMonth && usage.billingYear
           ? `Cycle: ${usage.billingYear}-${String(usage.billingMonth).padStart(2, "0")}`
           : null,
+        usage.source === "session" ? "Source: signed-in xAI session" : "Source: management key",
       ]
         .filter(Boolean)
         .join("\n")
-    : error || "Grok usage";
+    : error || "Sign in with xAI to view Grok usage";
 
   return (
     <Tooltip content={tooltip} side="top">
@@ -117,7 +101,7 @@ export function AiUsageFooterItem() {
         <Lightning className={chromeIcon()} weight="duotone" />
         <div className="flex min-w-[72px] flex-col gap-0.5">
           <span className="ui-text-xs leading-none text-text-lighter">
-            {isLoading && !usage ? "Usage…" : label}
+            {isLoading && !usage ? "Usage…" : error && !usage ? "Sign in" : label}
           </span>
           <div className="h-1 overflow-hidden rounded-full bg-hover/70">
             <div

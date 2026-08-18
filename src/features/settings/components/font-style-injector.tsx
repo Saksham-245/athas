@@ -46,20 +46,27 @@ function buildFontVariable(primary: string, fallback: string): string {
  * Font fallbacks are defined in styles.css @theme directive
  */
 export const FontStyleInjector = () => {
-  const codeEditorFontFamily = useEditorSettingsStore((state) => state.fontFamily);
+  const codeEditorFontFamily = useEditorSettingsStore(
+    (state) => state.fontFamily,
+  );
   const { settings } = useSettingsStore();
 
   useEffect(() => {
-    document.documentElement.setAttribute("data-platform", currentPlatform);
+    document.documentElement.dataset.platform = currentPlatform;
 
     const requestedEditorFont =
       stripWrappingQuotes(settings.fontFamily || codeEditorFontFamily || "") ||
       DEFAULT_MONO_FONT_FAMILY;
     const requestedUiFont =
-      stripWrappingQuotes(settings.uiFontFamily || "") || DEFAULT_UI_FONT_FAMILY;
+      stripWrappingQuotes(settings.uiFontFamily || "") ||
+      DEFAULT_UI_FONT_FAMILY;
 
-    const monoFallback = IS_WINDOWS ? WINDOWS_MONO_FALLBACK : DEFAULT_MONO_FALLBACK;
-    const sansFallback = IS_WINDOWS ? WINDOWS_SANS_FALLBACK : DEFAULT_SANS_FALLBACK;
+    const monoFallback = IS_WINDOWS
+      ? WINDOWS_MONO_FALLBACK
+      : DEFAULT_MONO_FALLBACK;
+    const sansFallback = IS_WINDOWS
+      ? WINDOWS_SANS_FALLBACK
+      : DEFAULT_SANS_FALLBACK;
 
     document.documentElement.style.setProperty(
       "--editor-font-family",
@@ -71,12 +78,20 @@ export const FontStyleInjector = () => {
     );
 
     const normalizedUiFontSize = normalizeUiFontSize(settings.uiFontSize);
-    document.documentElement.style.setProperty("--app-ui-font-size", `${normalizedUiFontSize}px`);
+    document.documentElement.style.setProperty(
+      "--app-ui-font-size",
+      `${normalizedUiFontSize}px`,
+    );
     document.documentElement.style.setProperty(
       "--app-ui-scale",
       `${getUiFontScale(normalizedUiFontSize)}`,
     );
-  }, [settings.fontFamily, settings.uiFontFamily, settings.uiFontSize, codeEditorFontFamily]);
+  }, [
+    settings.fontFamily,
+    settings.uiFontFamily,
+    settings.uiFontSize,
+    codeEditorFontFamily,
+  ]);
 
   return null;
 };

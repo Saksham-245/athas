@@ -22,6 +22,9 @@ const FALLBACK_MODES: { id: ChatMode; label: string }[] = [
   { id: "agent", label: "Agent" },
 ];
 
+// Ask/Agent segmented control is shown separately in the composer.
+// This dropdown remains the detailed mode picker (Chat/Plan/Agent).
+
 export const ModeSelector = memo(function ModeSelector({
   className,
   iconOnly = false,

@@ -52,11 +52,6 @@ import {
   removeProviderApiToken,
   storeProviderApiToken,
 } from "@/features/ai/services/ai-token-service";
-import {
-  getXaiManagementApiKey,
-  removeXaiManagementApiKey,
-  storeXaiManagementApiKey,
-} from "@/features/ai/services/xai-usage-service";
 import { SkillsCommand } from "@/features/ai/components/skills/skills-command";
 import { McpMarketplaceSection } from "@/features/settings/components/tabs/mcp-marketplace-section";
 const DEFAULT_AUTOCOMPLETE_MODEL_ID = "mistralai/devstral-small";
@@ -109,11 +104,6 @@ export const AISettings = () => {
   const [hasStoredOllamaKey, setHasStoredOllamaKey] = useState(false);
   const [isSavingOllamaKey, setIsSavingOllamaKey] = useState(false);
 
-  // xAI management/billing usage credentials
-  const [xaiTeamIdInput, setXaiTeamIdInput] = useState(settings.xaiTeamId || "");
-  const [xaiManagementKeyInput, setXaiManagementKeyInput] = useState("");
-  const [hasXaiManagementKey, setHasXaiManagementKey] = useState(false);
-  const [isSavingXaiManagementKey, setIsSavingXaiManagementKey] = useState(false);
   const [isSkillsMarketplaceOpen, setIsSkillsMarketplaceOpen] = useState(false);
 
   const isOllamaCloud = isOllamaCloudUrl(ollamaUrl);
@@ -128,17 +118,6 @@ export const AISettings = () => {
       }
     };
     detectAgents();
-  }, []);
-
-  useEffect(() => {
-    setXaiTeamIdInput(settings.xaiTeamId || "");
-  }, [settings.xaiTeamId]);
-
-  useEffect(() => {
-    void (async () => {
-      const key = await getXaiManagementApiKey();
-      setHasXaiManagementKey(Boolean(key));
-    })();
   }, []);
 
   useEffect(() => {
@@ -750,80 +729,10 @@ export const AISettings = () => {
         </SettingRow>
 
         <SettingRow
-          label="xAI Team ID"
-          description="Required for the footer Grok usage meter via the Management/Billing API."
+          label="Grok usage meter"
+          description="The footer usage meter uses your signed-in xAI session. No team ID or management key is required."
         >
-          <Input
-            value={xaiTeamIdInput}
-            onChange={(event) => setXaiTeamIdInput(event.currentTarget.value)}
-            onBlur={() => updateSetting("xaiTeamId", xaiTeamIdInput.trim())}
-            placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-            size="xs"
-            className={SETTINGS_CONTROL_WIDTHS.textWide}
-          />
-        </SettingRow>
-
-        <SettingRow
-          label="xAI Management Key"
-          description="Separate from chat API keys. Used only to fetch prepaid usage for the footer meter."
-        >
-          <div className="flex items-center gap-1.5">
-            <Input
-              type="password"
-              value={xaiManagementKeyInput}
-              onChange={(event) => setXaiManagementKeyInput(event.currentTarget.value)}
-              placeholder={hasXaiManagementKey ? "Saved" : "Management API key"}
-              size="xs"
-              className={SETTINGS_CONTROL_WIDTHS.textWide}
-            />
-            {hasXaiManagementKey ? (
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => {
-                  void (async () => {
-                    try {
-                      await removeXaiManagementApiKey();
-                      setHasXaiManagementKey(false);
-                      setXaiManagementKeyInput("");
-                      showToast({ message: "xAI management key removed", type: "success" });
-                    } catch {
-                      showToast({ message: "Failed to remove xAI management key", type: "error" });
-                    }
-                  })();
-                }}
-                title="Remove saved management key"
-                aria-label="Remove xAI management key"
-                className="text-error hover:bg-error/10"
-              >
-                <Trash2 />
-              </Button>
-            ) : null}
-            <Button
-              type="button"
-              variant="default"
-              disabled={!xaiManagementKeyInput.trim() || isSavingXaiManagementKey}
-              onClick={() => {
-                void (async () => {
-                  const key = xaiManagementKeyInput.trim();
-                  if (!key) return;
-                  setIsSavingXaiManagementKey(true);
-                  try {
-                    await storeXaiManagementApiKey(key);
-                    setHasXaiManagementKey(true);
-                    setXaiManagementKeyInput("");
-                    showToast({ message: "xAI management key saved", type: "success" });
-                  } catch {
-                    showToast({ message: "Failed to save xAI management key", type: "error" });
-                  } finally {
-                    setIsSavingXaiManagementKey(false);
-                  }
-                })();
-              }}
-            >
-              {isSavingXaiManagementKey ? "Saving..." : "Save"}
-            </Button>
-          </div>
+          <Badge size="sm">Uses Sign in with xAI</Badge>
         </SettingRow>
       </Section>
 

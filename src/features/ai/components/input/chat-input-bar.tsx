@@ -36,6 +36,7 @@ import { useSettingsStore } from "@/features/settings/stores/settings.store";
 import { useProjectStore } from "@/features/window/stores/project.store";
 import Badge from "@/ui/badge";
 import { Button } from "@/ui/button";
+import { SegmentedControl } from "@/ui/segmented-control";
 import { SidebarComposerBody, SidebarFooter } from "@/ui/sidebar";
 import { toast } from "@/ui/toast";
 import { cn } from "@/utils/cn";
@@ -108,6 +109,8 @@ const AIChatInputBar = memo(function AIChatInputBar({
   const queueCount = useAIChatStore((state) => state.messageQueue.length);
   const hasApiKey = useAIChatStore((state) => state.hasApiKey);
   const mentionState = useAIChatStore((state) => state.mentionState);
+  const mode = useAIChatStore((state) => state.mode);
+  const setMode = useAIChatStore((state) => state.setMode);
   const getCurrentAgentId = useAIChatStore((state) => state.getCurrentAgentId);
   const sessionConfigOptions = useAIChatStore((state) => state.sessionConfigOptions);
   const sessionModeState = useAIChatStore((state) => state.sessionModeState);
@@ -1687,18 +1690,39 @@ const AIChatInputBar = memo(function AIChatInputBar({
               )}
 
               {(isCustomAgent || !hasAcpConfigModeOption) && (
-                <ModeSelector
-                  open={activeInlineControl === "mode"}
-                  onOpenChange={(open) => {
-                    if (open) {
-                      closeComposerPopovers();
-                      setActiveInlineControl("mode");
-                      return;
-                    }
-                    setActiveInlineControl((current) => (current === "mode" ? null : current));
-                  }}
-                  iconOnly
-                />
+                <>
+                  {isCustomAgent ? (
+                    <SegmentedControl
+                      value={mode === "agent" ? "agent" : "ask"}
+                      options={[
+                        { value: "ask", label: "Ask" },
+                        { value: "agent", label: "Agent" },
+                      ]}
+                      onChange={(value) => {
+                        if (value === "agent") {
+                          setMode("agent");
+                          return;
+                        }
+                        // Ask maps to chat unless already in plan.
+                        setMode(mode === "plan" ? "plan" : "chat");
+                      }}
+                      size="xs"
+                      wrap={false}
+                      className="inline-flex h-7 w-fit max-w-full self-center rounded-md border border-border/60 bg-secondary-bg/40 p-0.5"
+                    />
+                  ) : null}
+                  <ModeSelector
+                    open={activeInlineControl === "mode"}
+                    onOpenChange={(open) => {
+                      if (open) {
+                        closeComposerPopovers();
+                        setActiveInlineControl("mode");
+                        return;
+                      }
+                      setActiveInlineControl((current) => (current === "mode" ? null : current));
+                    }}
+                  />
+                </>
               )}
 
               {hasSlashCommands && (
