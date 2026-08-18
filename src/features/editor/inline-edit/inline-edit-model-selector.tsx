@@ -8,6 +8,7 @@ import { ProviderIcon } from "@/features/ai/components/icons/provider-icons";
 import { ProviderApiKeyCommand } from "@/features/ai/components/provider-api-key-command";
 import { canUseProviderWithoutApiKey } from "@/features/ai/lib/provider-access";
 import { getProviderApiToken } from "@/features/ai/services/ai-token-service";
+import { getGrokBearerToken } from "@/features/ai/services/xai-auth-service";
 import { getProvider } from "@/features/ai/services/providers/ai-provider-registry";
 import { useAIChatStore } from "@/features/ai/stores/ai-chat.store";
 import { getAvailableProviders, getProviderById } from "@/features/ai/types/providers.types";
@@ -64,7 +65,11 @@ export const InlineEditModelSelector = ({
       const instance = getProvider(nextProviderId);
       if (!instance?.getModels) return;
 
-      const apiKey = config?.requiresApiKey ? await getProviderApiToken(nextProviderId) : undefined;
+      const apiKey = config?.requiresApiKey
+        ? nextProviderId === "grok"
+          ? await getGrokBearerToken()
+          : await getProviderApiToken(nextProviderId)
+        : undefined;
       const canFetchWithoutApiKey = nextProviderId === "openrouter";
       const canUseWithoutApiKey = canUseProviderWithoutApiKey({
         providerId: nextProviderId,

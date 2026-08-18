@@ -73,6 +73,11 @@ function ProviderApiKeyCommandContent({
   const saveApiKey = useAIChatStore((state) => state.saveApiKey);
   const removeApiKey = useAIChatStore((state) => state.removeApiKey);
   const hasProviderApiKey = useAIChatStore((state) => state.hasProviderApiKey);
+  const grokAuth = useAIChatStore((state) => state.grokAuth);
+  const signInWithXai = useAIChatStore((state) => state.signInWithXai);
+  const cancelXaiSignIn = useAIChatStore((state) => state.cancelXaiSignIn);
+  const signOutXai = useAIChatStore((state) => state.signOutXai);
+  const checkGrokAuthSession = useAIChatStore((state) => state.checkGrokAuthSession);
 
   const providers = useMemo(
     () => getAvailableProviders().filter((provider) => provider.requiresApiKey),
@@ -93,6 +98,7 @@ function ProviderApiKeyCommandContent({
 
   const selectedProvider = getProviderById(selectedProviderId);
   const hasExistingKey = selectedProviderId ? hasProviderApiKey(selectedProviderId) : false;
+  const isGrokProvider = selectedProviderId === "grok";
   const dashboardLink = selectedProviderId ? DASHBOARD_LINKS[selectedProviderId] : undefined;
   const placeholder =
     selectedProviderId && PLACEHOLDERS[selectedProviderId]
@@ -114,6 +120,12 @@ function ProviderApiKeyCommandContent({
     const focusFrame = requestAnimationFrame(() => searchRef.current?.focus());
     return () => cancelAnimationFrame(focusFrame);
   }, []);
+
+  useEffect(() => {
+    if (isGrokProvider) {
+      void checkGrokAuthSession();
+    }
+  }, [checkGrokAuthSession, isGrokProvider]);
 
   const handleSave = async () => {
     if (!selectedProviderId) return;
@@ -222,10 +234,77 @@ function ProviderApiKeyCommandContent({
                 <div className="min-w-0">
                   <div className="truncate ui-text-sm text-text">{selectedProvider.name}</div>
                   <div className="ui-text-xs text-text-lighter">
-                    {hasExistingKey ? "API key saved" : "API key required"}
+                    {isGrokProvider
+                      ? grokAuth.hasOAuthSession
+                        ? "Signed in with xAI"
+                        : hasExistingKey
+                          ? "API key saved"
+                          : "Sign in with xAI or add an API key"
+                      : hasExistingKey
+                        ? "API key saved"
+                        : "API key required"}
                   </div>
                 </div>
               </div>
+
+              {isGrokProvider ? (
+                <div className="space-y-2 rounded-md border border-border/70 bg-secondary-bg/40 p-2.5">
+                  {grokAuth.hasOAuthSession ? (
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="ui-text-xs text-text-lighter">xAI account connected</div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        onClick={() => void signOutXai()}
+                        className="text-error hover:bg-error/10 hover:text-error"
+                      >
+                        Sign out
+                      </Button>
+                    </div>
+                  ) : (
+                    <>
+                      <Button
+                        type="button"
+                        variant="accent"
+                        onClick={() => void signInWithXai()}
+                        disabled={grokAuth.isSigningIn}
+                        className="w-full"
+                      >
+                        {grokAuth.isSigningIn ? "Waiting for browser..." : "Sign in with xAI"}
+                      </Button>
+                      {grokAuth.isSigningIn && grokAuth.userCode ? (
+                        <div className="ui-text-xs text-text-lighter">
+                          Confirm code{" "}
+                          <span className="font-medium text-text">{grokAuth.userCode}</span> in your
+                          browser.
+                          <div className="mt-1 flex items-center gap-2">
+                            {grokAuth.verificationUri ? (
+                              <a
+                                href={grokAuth.verificationUri}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="hover:text-text"
+                              >
+                                Open login page
+                              </a>
+                            ) : null}
+                            <button
+                              type="button"
+                              className="text-error hover:text-error/80"
+                              onClick={cancelXaiSignIn}
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      ) : null}
+                      {grokAuth.error ? (
+                        <div className="ui-text-xs text-error">{grokAuth.error}</div>
+                      ) : null}
+                    </>
+                  )}
+                </div>
+              ) : null}
 
               <Input
                 ref={apiKeyInputRef}
@@ -287,7 +366,7 @@ function ProviderApiKeyCommandContent({
                   )}
                   <Button
                     type="button"
-                    variant="accent"
+                    variant={isGrokProvider ? "default" : "accent"}
                     onClick={() => void handleSave()}
                     disabled={!apiKey.trim() || isValidating || apiKey.startsWith("•")}
                     className={cn(isValidating && "opacity-70")}

@@ -1,5 +1,6 @@
 import { fetch as tauriFetch } from "@tauri-apps/plugin-http";
 import { getProviderApiToken } from "@/features/ai/services/ai-token-service";
+import { getGrokBearerToken } from "@/features/ai/services/xai-auth-service";
 import { getProvider } from "@/features/ai/services/providers/ai-provider-registry";
 import type { ProviderModel } from "@/features/ai/services/providers/ai-provider-interface";
 import { useAIChatStore } from "@/features/ai/stores/ai-chat.store";
@@ -154,10 +155,17 @@ async function requestProviderInlineEdit(
   }
 
   const apiKey = providerConfig.requiresApiKey
-    ? await getProviderApiToken(request.provider)
+    ? request.provider === "grok"
+      ? await getGrokBearerToken()
+      : await getProviderApiToken(request.provider)
     : await getProviderApiToken(request.provider).catch(() => null);
   if (providerConfig.requiresApiKey && !apiKey) {
-    throw new InlineEditError(`${providerConfig.name} API key is required for inline edit.`, 402);
+    throw new InlineEditError(
+      request.provider === "grok"
+        ? `${providerConfig.name} authentication is required for inline edit. Sign in with xAI or add an API key.`
+        : `${providerConfig.name} API key is required for inline edit.`,
+      402,
+    );
   }
 
   const messages = buildInlineEditMessages(request);

@@ -4,6 +4,7 @@ import type { ChatMode, OutputStyle } from "@/features/ai/types/ai-chat-store.ty
 import type { AcpEvent } from "@/features/ai/types/acp.types";
 import type { ContextInfo } from "@/features/ai/types/ai-context.types";
 import type { AgentType } from "@/features/ai/types/ai-chat.types";
+import type { ImageContent } from "@/features/ai/types/ai-chat.types";
 import type { AIMessage } from "@/features/ai/types/messages.types";
 import {
   getAvailableProviders,
@@ -14,12 +15,17 @@ import { getProvider } from "@/features/ai/services/providers/ai-provider-regist
 import { isOllamaCloudUrl } from "@/features/ai/services/providers/ollama-provider";
 import { processStreamingResponse } from "@/utils/stream-utils";
 import { getProviderApiToken } from "@/features/ai/services/ai-token-service";
+import { getGrokBearerToken } from "@/features/ai/services/xai-auth-service";
 import { canUseHostedProvider } from "@/features/ai/lib/provider-access";
 import {
   getCustomProviderApiToken,
   resolveCustomProviderBaseUrl,
   resolveCustomProviderModelId,
 } from "@/features/ai/lib/custom-provider-config";
+import {
+  buildUserMessageContent,
+  providerSupportsVisionAttachments,
+} from "@/features/ai/lib/vision-attachments";
 import { useSettingsStore } from "@/features/settings/stores/settings.store";
 import { getAuthToken } from "@/features/window/services/auth-api";
 import { useAuthStore } from "@/features/window/stores/auth.store";
@@ -148,6 +154,7 @@ export const getChatCompletionStream = async (
   onResourceChunk?: (uri: string, name: string | null) => void,
   chatId?: string,
   systemPromptOverride?: string,
+  userImages: ImageContent[] = [],
 ): Promise<void> => {
   try {
     // Handle ACP-based CLI agents (Gemini CLI, Codex CLI, etc.)
@@ -195,11 +202,17 @@ export const getChatCompletionStream = async (
     const apiKey =
       providerId === "custom"
         ? await getCustomProviderApiToken()
-        : await getProviderApiToken(providerId);
+        : providerId === "grok"
+          ? await getGrokBearerToken()
+          : await getProviderApiToken(providerId);
     const subscription = useAuthStore.getState().subscription;
     const useHostedOpenRouter = !apiKey && canUseHostedProvider(providerId, subscription);
     if (!apiKey && provider.requiresApiKey && !useHostedOpenRouter) {
-      throw new Error(`${provider.name} API key not found`);
+      throw new Error(
+        providerId === "grok"
+          ? `${provider.name} authentication not found. Sign in with xAI or add an API key.`
+          : `${provider.name} API key not found`,
+      );
     }
 
     if (providerId === "custom" && !customProviderBaseUrl) {
@@ -235,10 +248,12 @@ export const getChatCompletionStream = async (
       messages.push(...conversationHistory);
     }
 
-    // Add the current user message
+    // Add the current user message (include vision attachments when supported)
+    const attachmentImages =
+      userImages.length > 0 && providerSupportsVisionAttachments(providerId) ? userImages : [];
     messages.push({
       role: "user" as const,
-      content: userMessage,
+      content: buildUserMessageContent(userMessage, attachmentImages),
     });
 
     if (useHostedOpenRouter) {
@@ -283,8 +298,6 @@ export const getChatCompletionStream = async (
       apiKey: apiKey || undefined,
     };
 
-    const headers = providerImpl.buildHeaders(apiKey || undefined);
-    const payload = providerImpl.buildPayload(streamRequest);
     const url = providerImpl.buildUrl ? providerImpl.buildUrl(streamRequest) : provider.apiUrl;
 
     console.log(`Making ${provider.name} streaming chat request with model ${model.name}...`);
@@ -293,11 +306,30 @@ export const getChatCompletionStream = async (
     const needsTauriFetch =
       providerId === "gemini" || providerId === "ollama" || providerId === "anthropic";
     const fetchFn = needsTauriFetch ? tauriFetch : fetch;
-    const response = await fetchFn(url, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(payload),
-    });
+
+    const sendRequest = async (bearerToken?: string) => {
+      const requestHeaders = providerImpl.buildHeaders(bearerToken);
+      const requestPayload = providerImpl.buildPayload({
+        ...streamRequest,
+        apiKey: bearerToken,
+      });
+      return fetchFn(url, {
+        method: "POST",
+        headers: requestHeaders,
+        body: JSON.stringify(requestPayload),
+      });
+    };
+
+    let activeToken = apiKey || undefined;
+    let response = await sendRequest(activeToken);
+
+    if (!response.ok && providerId === "grok" && (response.status === 401 || response.status === 403)) {
+      const refreshedToken = await getGrokBearerToken({ forceRefresh: true });
+      if (refreshedToken && refreshedToken !== activeToken) {
+        activeToken = refreshedToken;
+        response = await sendRequest(activeToken);
+      }
+    }
 
     if (!response.ok) {
       console.error(`${provider.name} API error:`, response.status, response.statusText);

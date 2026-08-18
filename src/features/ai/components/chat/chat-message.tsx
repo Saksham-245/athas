@@ -93,7 +93,11 @@ export const ChatMessage = memo(function ChatMessage({ message, onApplyCode }: C
             <img
               key={`${message.id}-image-${index}`}
               src={`data:${image.mediaType};base64,${image.data}`}
-              alt={`AI generated content ${index + 1}`}
+              alt={
+                message.role === "user"
+                  ? `Attached image ${index + 1}`
+                  : `AI generated content ${index + 1}`
+              }
               className="max-h-64 max-w-full rounded-lg border border-border"
             />
           ))}

@@ -41,14 +41,25 @@ const AI_MODEL_MIGRATIONS: Record<string, Record<string, string>> = {
     "gemini-2.0-flash": "gemini-3.5-flash",
   },
   grok: {
-    "grok-4.20-reasoning": "grok-4.3",
-    "grok-4.20-non-reasoning": "grok-4.3",
-    "grok-4.20-multi-agent": "grok-4.3",
-    "grok-4-1-fast-reasoning": "grok-4.3",
-    "grok-4-1-fast-non-reasoning": "grok-4.3",
-    "grok-4-fast-reasoning": "grok-4.3",
-    "grok-4-fast-non-reasoning": "grok-4.3",
-    "grok-4": "grok-4.3",
+    "grok-4.20-0309-reasoning": "grok-4.20-reasoning",
+    "grok-4.20-reasoning-latest": "grok-4.20-reasoning",
+    "grok-4.20": "grok-4.20-reasoning",
+    "grok-4.20-0309": "grok-4.20-reasoning",
+    "grok-4.20-beta": "grok-4.20-reasoning",
+    "grok-4.20-beta-reasoning": "grok-4.20-reasoning",
+    "grok-4.20-0309-non-reasoning": "grok-4.20-non-reasoning",
+    "grok-4.20-non-reasoning-latest": "grok-4.20-non-reasoning",
+    "grok-4.20-beta-non-reasoning": "grok-4.20-non-reasoning",
+    "grok-4.20-multi-agent-0309": "grok-4.20-multi-agent",
+    "grok-4.20-multi-agent-latest": "grok-4.20-multi-agent",
+    "grok-4-1-fast-reasoning": "grok-4.6",
+    "grok-4-1-fast-non-reasoning": "grok-4.6",
+    "grok-4-fast-reasoning": "grok-4.6",
+    "grok-4-fast-non-reasoning": "grok-4.6",
+    "grok-4": "grok-4.6",
+    "grok-4.3-latest": "grok-4.3",
+    "grok-4.5-latest": "grok-4.5",
+    "grok-build-latest": "grok-4.5",
     "grok-code-fast-1": "grok-build-0.1",
   },
   mistral: {
@@ -297,6 +308,7 @@ function normalizeAISettings(settings: Settings): Settings {
 
   normalizedSettings.aiCustomBaseUrl = normalizeBaseUrl(normalizedSettings.aiCustomBaseUrl);
   normalizedSettings.aiCustomModelId = normalizedSettings.aiCustomModelId?.trim() || "";
+  normalizedSettings.xaiTeamId = normalizedSettings.xaiTeamId?.trim() || "";
 
   if (provider.id === "custom") {
     normalizedSettings.aiModelId = normalizedSettings.aiCustomModelId;
@@ -475,6 +487,10 @@ export function normalizeSettingValue<K extends keyof Settings>(
 
   if (key === "aiCustomBaseUrl") {
     return normalizeBaseUrl(value as string) as Settings[K];
+  }
+
+  if (key === "xaiTeamId") {
+    return ((value as string)?.trim() || "") as Settings[K];
   }
 
   if (key === "aiCustomModelId") {

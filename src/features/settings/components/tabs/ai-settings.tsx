@@ -52,6 +52,11 @@ import {
   removeProviderApiToken,
   storeProviderApiToken,
 } from "@/features/ai/services/ai-token-service";
+import {
+  getXaiManagementApiKey,
+  removeXaiManagementApiKey,
+  storeXaiManagementApiKey,
+} from "@/features/ai/services/xai-usage-service";
 const DEFAULT_AUTOCOMPLETE_MODEL_ID = "mistralai/devstral-small";
 
 function resolveAutocompleteDefaultModelId(models: Array<{ id: string; name: string }>): string {
@@ -102,6 +107,12 @@ export const AISettings = () => {
   const [hasStoredOllamaKey, setHasStoredOllamaKey] = useState(false);
   const [isSavingOllamaKey, setIsSavingOllamaKey] = useState(false);
 
+  // xAI management/billing usage credentials
+  const [xaiTeamIdInput, setXaiTeamIdInput] = useState(settings.xaiTeamId || "");
+  const [xaiManagementKeyInput, setXaiManagementKeyInput] = useState("");
+  const [hasXaiManagementKey, setHasXaiManagementKey] = useState(false);
+  const [isSavingXaiManagementKey, setIsSavingXaiManagementKey] = useState(false);
+
   const isOllamaCloud = isOllamaCloudUrl(ollamaUrl);
   const needsApiKey = isOllamaCloud;
 
@@ -114,6 +125,17 @@ export const AISettings = () => {
       }
     };
     detectAgents();
+  }, []);
+
+  useEffect(() => {
+    setXaiTeamIdInput(settings.xaiTeamId || "");
+  }, [settings.xaiTeamId]);
+
+  useEffect(() => {
+    void (async () => {
+      const key = await getXaiManagementApiKey();
+      setHasXaiManagementKey(Boolean(key));
+    })();
   }, []);
 
   useEffect(() => {
@@ -345,9 +367,16 @@ export const AISettings = () => {
     updateSetting("aiAutocompleteCustomBaseUrl", customAutocompleteBaseUrlInput);
   };
 
-  const providersNeedingAuth = getAvailableProviders().filter(
-    (p) => p.requiresAuth && !p.requiresApiKey,
-  );
+  const grokAuth = useAIChatStore((state) => state.grokAuth);
+  const signInWithXai = useAIChatStore((state) => state.signInWithXai);
+  const cancelXaiSignIn = useAIChatStore((state) => state.cancelXaiSignIn);
+  const signOutXai = useAIChatStore((state) => state.signOutXai);
+  const checkGrokAuthSession = useAIChatStore((state) => state.checkGrokAuthSession);
+  const hasGrokCredential = useAIChatStore((state) => state.hasProviderApiKey("grok"));
+
+  useEffect(() => {
+    void checkGrokAuthSession();
+  }, [checkGrokAuthSession]);
 
   const isOllamaSelected = settings.aiProviderId === "ollama";
   const isCustomProviderSelected = settings.aiProviderId === CUSTOM_CHAT_PROVIDER_ID;
@@ -632,21 +661,168 @@ export const AISettings = () => {
         initialProviderId={settings.aiProviderId}
       />
 
-      {providersNeedingAuth.length > 0 && (
-        <Section title="Authentication">
-          {providersNeedingAuth.map((provider) => (
-            <SettingRow
-              key={provider.id}
-              label={provider.name}
-              description="Requires OAuth authentication"
+      <Section title="Authentication">
+        <SettingRow
+          label="xAI Grok"
+          description={
+            grokAuth.hasOAuthSession
+              ? "Signed in with your xAI account. API keys remain available as a fallback."
+              : hasGrokCredential
+                ? "Using a saved API key. You can also sign in with xAI."
+                : "Sign in with xAI via device code, or add an API key as a fallback."
+          }
+        >
+          <div className="flex flex-col items-end gap-2">
+            <div className="flex items-center gap-1.5">
+              {grokAuth.hasOAuthSession ? (
+                <>
+                  <Badge variant="default" size="default">
+                    Signed in
+                  </Badge>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => {
+                      void signOutXai()
+                        .then(() => {
+                          showToast({ message: "Signed out of xAI", type: "success" });
+                        })
+                        .catch(() => {
+                          showToast({ message: "Failed to sign out of xAI", type: "error" });
+                        });
+                    }}
+                    className="text-error hover:bg-error/10 hover:text-error"
+                  >
+                    Sign out
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  type="button"
+                  variant="accent"
+                  onClick={() => {
+                    void signInWithXai().then((signedIn) => {
+                      if (signedIn) {
+                        showToast({ message: "Signed in with xAI", type: "success" });
+                      }
+                    });
+                  }}
+                  disabled={grokAuth.isSigningIn}
+                >
+                  {grokAuth.isSigningIn ? "Waiting for browser..." : "Sign in with xAI"}
+                </Button>
+              )}
+            </div>
+            {grokAuth.isSigningIn && grokAuth.userCode ? (
+              <div className="max-w-xs text-right ui-text-xs text-text-lighter">
+                <div>
+                  Confirm code <span className="font-medium text-text">{grokAuth.userCode}</span> in
+                  your browser.
+                </div>
+                <div className="mt-1 flex justify-end gap-2">
+                  {grokAuth.verificationUri ? (
+                    <a
+                      href={grokAuth.verificationUri}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-text-lighter hover:text-text"
+                    >
+                      Open login page
+                    </a>
+                  ) : null}
+                  <button
+                    type="button"
+                    className="text-error hover:text-error/80"
+                    onClick={cancelXaiSignIn}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : null}
+            {grokAuth.error ? (
+              <div className="max-w-xs text-right ui-text-xs text-error">{grokAuth.error}</div>
+            ) : null}
+          </div>
+        </SettingRow>
+
+        <SettingRow
+          label="xAI Team ID"
+          description="Required for the footer Grok usage meter via the Management/Billing API."
+        >
+          <Input
+            value={xaiTeamIdInput}
+            onChange={(event) => setXaiTeamIdInput(event.currentTarget.value)}
+            onBlur={() => updateSetting("xaiTeamId", xaiTeamIdInput.trim())}
+            placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+            size="xs"
+            className={SETTINGS_CONTROL_WIDTHS.textWide}
+          />
+        </SettingRow>
+
+        <SettingRow
+          label="xAI Management Key"
+          description="Separate from chat API keys. Used only to fetch prepaid usage for the footer meter."
+        >
+          <div className="flex items-center gap-1.5">
+            <Input
+              type="password"
+              value={xaiManagementKeyInput}
+              onChange={(event) => setXaiManagementKeyInput(event.currentTarget.value)}
+              placeholder={hasXaiManagementKey ? "Saved" : "Management API key"}
+              size="xs"
+              className={SETTINGS_CONTROL_WIDTHS.textWide}
+            />
+            {hasXaiManagementKey ? (
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => {
+                  void (async () => {
+                    try {
+                      await removeXaiManagementApiKey();
+                      setHasXaiManagementKey(false);
+                      setXaiManagementKeyInput("");
+                      showToast({ message: "xAI management key removed", type: "success" });
+                    } catch {
+                      showToast({ message: "Failed to remove xAI management key", type: "error" });
+                    }
+                  })();
+                }}
+                title="Remove saved management key"
+                aria-label="Remove xAI management key"
+                className="text-error hover:bg-error/10"
+              >
+                <Trash2 />
+              </Button>
+            ) : null}
+            <Button
+              type="button"
+              variant="default"
+              disabled={!xaiManagementKeyInput.trim() || isSavingXaiManagementKey}
+              onClick={() => {
+                void (async () => {
+                  const key = xaiManagementKeyInput.trim();
+                  if (!key) return;
+                  setIsSavingXaiManagementKey(true);
+                  try {
+                    await storeXaiManagementApiKey(key);
+                    setHasXaiManagementKey(true);
+                    setXaiManagementKeyInput("");
+                    showToast({ message: "xAI management key saved", type: "success" });
+                  } catch {
+                    showToast({ message: "Failed to save xAI management key", type: "error" });
+                  } finally {
+                    setIsSavingXaiManagementKey(false);
+                  }
+                })();
+              }}
             >
-              <Badge variant="default" size="default">
-                Coming Soon
-              </Badge>
-            </SettingRow>
-          ))}
-        </Section>
-      )}
+              {isSavingXaiManagementKey ? "Saving..." : "Save"}
+            </Button>
+          </div>
+        </SettingRow>
+      </Section>
 
       {sessionConfigOptions.length > 0 && (
         <Section title="ACP Session">

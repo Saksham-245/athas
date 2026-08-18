@@ -158,10 +158,36 @@ export const AI_PROVIDERS: ModelProvider[] = [
     name: "xAI Grok",
     apiUrl: "https://api.x.ai/v1/chat/completions",
     requiresApiKey: true,
+    requiresAuth: true,
     models: [
+      {
+        id: "grok-4.6",
+        name: "Grok 4.6",
+        maxTokens: 1000000,
+      },
+      {
+        id: "grok-4.5",
+        name: "Grok 4.5",
+        maxTokens: 1000000,
+      },
       {
         id: "grok-4.3",
         name: "Grok 4.3",
+        maxTokens: 1000000,
+      },
+      {
+        id: "grok-4.20-reasoning",
+        name: "Grok 4.20 Reasoning",
+        maxTokens: 1000000,
+      },
+      {
+        id: "grok-4.20-non-reasoning",
+        name: "Grok 4.20 Non-Reasoning",
+        maxTokens: 1000000,
+      },
+      {
+        id: "grok-4.20-multi-agent",
+        name: "Grok 4.20 Multi-Agent",
         maxTokens: 1000000,
       },
       {

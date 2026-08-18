@@ -11,6 +11,7 @@ import {
 } from "@/features/tabs/utils/internal-tab-drag";
 import { useUIState } from "@/features/window/stores/ui-state.store";
 import {
+  AI_CONTEXT_EXTERNAL_FILES_DROPPED_EVENT,
   handleExternalFileDropPayload,
   getExternalFileDropRoute,
   isExternalFileDragTypeList,
@@ -141,7 +142,19 @@ export const useFileSystemFolderDrop = (onDrop: (paths: string[]) => void | Prom
           return;
         }
         const position = "position" in event.payload ? event.payload.position : undefined;
-        if (getExternalFileDropRouteAtPosition(position) !== "global") {
+        const route = getExternalFileDropRouteAtPosition(position);
+        if (route === "ai-context") {
+          setIsDraggingOver(false);
+          if (event.payload.type === "drop" && "paths" in event.payload) {
+            window.dispatchEvent(
+              new CustomEvent(AI_CONTEXT_EXTERNAL_FILES_DROPPED_EVENT, {
+                detail: { paths: event.payload.paths || [] },
+              }),
+            );
+          }
+          return;
+        }
+        if (route !== "global") {
           setIsDraggingOver(false);
           return;
         }
@@ -165,7 +178,19 @@ export const useFileSystemFolderDrop = (onDrop: (paths: string[]) => void | Prom
           return;
         }
         const position = "position" in event.payload ? event.payload.position : undefined;
-        if (getExternalFileDropRouteAtPosition(position) !== "global") {
+        const route = getExternalFileDropRouteAtPosition(position);
+        if (route === "ai-context") {
+          setIsDraggingOver(false);
+          if (event.payload.type === "drop" && "paths" in event.payload) {
+            window.dispatchEvent(
+              new CustomEvent(AI_CONTEXT_EXTERNAL_FILES_DROPPED_EVENT, {
+                detail: { paths: event.payload.paths || [] },
+              }),
+            );
+          }
+          return;
+        }
+        if (route !== "global") {
           setIsDraggingOver(false);
           return;
         }

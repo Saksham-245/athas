@@ -1,3 +1,4 @@
+import { getMessageTextContent } from "@/features/ai/lib/vision-attachments";
 import {
   AIProvider,
   type ProviderHeaders,
@@ -83,14 +84,14 @@ export class GeminiProvider extends AIProvider {
         .filter((msg) => msg.role !== "system")
         .map((msg) => ({
           role: msg.role === "assistant" ? "model" : "user",
-          parts: [{ text: msg.content }],
+          parts: [{ text: getMessageTextContent(msg.content) }],
         })),
       generationConfig,
     };
 
     if (systemMessage) {
       payload.systemInstruction = {
-        parts: [{ text: systemMessage.content }],
+        parts: [{ text: getMessageTextContent(systemMessage.content) }],
       };
     }
 

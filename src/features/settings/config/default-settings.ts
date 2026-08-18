@@ -82,6 +82,7 @@ export const defaultSettings: Settings = {
   aiDefaultSessionMode: "",
   aiSkills: [],
   ollamaBaseUrl: "http://localhost:11434",
+  xaiTeamId: "",
   // Layout
   sidebarWidth: 220,
   showGitHubPullRequests: true,

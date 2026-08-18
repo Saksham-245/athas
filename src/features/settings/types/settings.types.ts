@@ -89,6 +89,7 @@ export interface Settings {
   aiDefaultSessionMode: string;
   aiSkills: AIChatSkill[];
   ollamaBaseUrl: string;
+  xaiTeamId: string;
   // Layout
   sidebarWidth: number;
   showGitHubPullRequests: boolean;

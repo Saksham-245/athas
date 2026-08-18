@@ -9,6 +9,7 @@ import { useProFeature } from "@/extensions/ui/hooks/use-pro-feature";
 import { getCustomModelOptions } from "@/features/ai/lib/custom-model-options";
 import { canUseProviderWithoutApiKey } from "@/features/ai/lib/provider-access";
 import { getProviderApiToken } from "@/features/ai/services/ai-token-service";
+import { getGrokBearerToken } from "@/features/ai/services/xai-auth-service";
 import { getProvider } from "@/features/ai/services/providers/ai-provider-registry";
 import { useAIChatStore } from "@/features/ai/stores/ai-chat.store";
 import { getProviderById } from "@/features/ai/types/providers.types";
@@ -98,7 +99,11 @@ export function ModelSelector({
     setModelFetchError(null);
     if (!instance?.getModels) return;
 
-    const apiKey = config?.requiresApiKey ? await getProviderApiToken(providerId) : undefined;
+    const apiKey = config?.requiresApiKey
+      ? providerId === "grok"
+        ? await getGrokBearerToken()
+        : await getProviderApiToken(providerId)
+      : undefined;
     const canFetchWithoutApiKey = providerId === "openrouter";
     const canUseWithoutApiKey = canUseProviderWithoutApiKey({
       providerId,

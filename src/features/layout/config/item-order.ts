@@ -13,6 +13,7 @@ export const FOOTER_TRAILING_ITEM_IDS = [
   "outline",
   "databases",
   "collaboration",
+  "ai-usage",
   "notifications",
 ] as const;
 

@@ -62,7 +62,9 @@ export class GrokProvider extends AIProvider {
 
   async validateApiKey(apiKey: string): Promise<boolean> {
     try {
-      const response = await fetch("https://api.x.ai/v1/api-key", {
+      // OAuth session tokens are rejected by /v1/api-key, but work on model listing
+      // and chat completions. Prefer language-models so both credential types validate.
+      const response = await fetch("https://api.x.ai/v1/language-models", {
         method: "GET",
         headers: {
           Authorization: `Bearer ${apiKey}`,

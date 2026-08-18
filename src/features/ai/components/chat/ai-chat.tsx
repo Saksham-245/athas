@@ -13,6 +13,11 @@ import {
   markToolCallComplete,
   updateToolCall,
 } from "@/features/ai/lib/tool-call-state";
+import {
+  buildUserMessageContent,
+  pastedImagesToImageContent,
+  providerSupportsVisionAttachments,
+} from "@/features/ai/lib/vision-attachments";
 import { requestInlineEdit } from "@/features/editor/services/editor-inline-edit-service";
 import { AcpStreamHandler } from "@/features/ai/services/acp-stream-handler";
 import { getChatCompletionStream, isAcpAgent } from "@/features/ai/services/ai-chat-service";
@@ -20,7 +25,9 @@ import { useAIChatStore } from "@/features/ai/stores/ai-chat.store";
 import type { AcpEvent, AcpPermissionOption } from "@/features/ai/types/acp.types";
 import type { ContextInfo } from "@/features/ai/types/ai-context.types";
 import type { AIChatProps, Message } from "@/features/ai/types/ai-chat.types";
+import type { PastedImage } from "@/features/ai/types/ai-chat-store.types";
 import type { ChatAcpEvent } from "@/features/ai/types/chat-ui.types";
+import type { AIMessage } from "@/features/ai/types/messages.types";
 import { useBufferStore } from "@/features/editor/stores/buffer.store";
 import { useToast } from "@/features/layout/contexts/toast-context";
 import { useSettingsStore } from "@/features/settings/stores/settings.store";
@@ -424,16 +431,19 @@ const AIChat = memo(function AIChat({
     [chatActions.updateMessage],
   );
 
-  const processMessage = async (messageContent: string) => {
+  const processMessage = async (messageContent: string, pastedImages: PastedImage[] = []) => {
     const store = useAIChatStore.getState();
     const targetChat = effectiveChatId
       ? store.chats.find((chat) => chat.id === effectiveChatId)
       : null;
     const currentAgentId = targetChat?.agentId ?? store.getCurrentAgentId();
     const isAcp = isAcpAgent(currentAgentId);
+    const imageAttachments = pastedImagesToImageContent(pastedImages);
     // For ACP agents, we don't need an API key.
     // For Custom API, we need an API key to be set
-    if (!messageContent.trim() || (!isAcp && !store.hasApiKey)) return;
+    if ((!messageContent.trim() && imageAttachments.length === 0) || (!isAcp && !store.hasApiKey)) {
+      return;
+    }
 
     // Agents are started automatically by AcpStreamHandler when needed
 
@@ -452,11 +462,23 @@ const AIChat = memo(function AIChat({
     const latestSettings = useSettingsStore.getState().settings;
     const context = await buildContext(currentAgentId, latestSettings.aiProviderId);
     context.mentionedFiles = mentionedFiles;
+    if (
+      imageAttachments.length > 0 &&
+      !isAcp &&
+      !providerSupportsVisionAttachments(latestSettings.aiProviderId)
+    ) {
+      showToast({
+        message: `${latestSettings.aiProviderId} does not support image attachments yet.`,
+        type: "error",
+      });
+      return;
+    }
     const userMessage: Message = {
       id: Date.now().toString(),
-      content: messageContent.trim(),
+      content: messageContent.trim() || (imageAttachments.length > 0 ? "Describe this image." : ""),
       role: "user",
       timestamp: new Date(),
+      images: imageAttachments.length > 0 ? imageAttachments : undefined,
     };
 
     const assistantMessageId = (Date.now() + 1).toString();
@@ -528,16 +550,23 @@ const AIChat = memo(function AIChat({
         }
       }
 
-      const conversationContext = useAIChatStore
+      const conversationContext: AIMessage[] = useAIChatStore
         .getState()
         .getMessagesForChat(targetChatId)
         .filter((msg) => msg.role !== "system")
+        .slice(0, -2)
         .map((msg) => ({
           role: msg.role as "user" | "assistant",
-          content: msg.content,
+          content:
+            msg.role === "user" && msg.images && msg.images.length > 0
+              ? buildUserMessageContent(msg.content, msg.images)
+              : msg.content,
         }));
 
-      const enhancedMessage = isAcp ? messageContent.trim() : processedMessage;
+      const enhancedMessage = isAcp
+        ? messageContent.trim()
+        : processedMessage ||
+          (imageAttachments.length > 0 ? "Describe this image." : messageContent.trim());
       if (isAcp) {
         setAcpEvents([]);
       }
@@ -929,6 +958,8 @@ details: ${errorDetails || mainError}
           requestAnimationFrame(() => scrollToBottom());
         },
         targetChatId,
+        undefined,
+        imageAttachments,
       );
     } catch (error) {
       console.error("Failed to start streaming:", error);
@@ -956,11 +987,13 @@ details: ${errorDetails || mainError}
   }, [chatState.isTyping, chatState.streamingMessageId, chatActions.processNextMessage]);
 
   const sendMessage = useCallback(
-    async (messageContent: string) => {
+    async (messageContent: string, images: PastedImage[] = []) => {
       const currentAgentId = chatActions.getCurrentAgentId();
       const isAcp = isAcpAgent(currentAgentId);
       // For ACP agents, we don't need an API key.
-      if (!messageContent.trim() || (!isAcp && !chatState.hasApiKey)) return;
+      if ((!messageContent.trim() && images.length === 0) || (!isAcp && !chatState.hasApiKey)) {
+        return;
+      }
 
       chatActions.setInput("");
 
@@ -969,7 +1002,7 @@ details: ${errorDetails || mainError}
         return;
       }
 
-      await processMessage(messageContent);
+      await processMessage(messageContent, images);
     },
     [
       chatState.hasApiKey,
@@ -982,8 +1015,8 @@ details: ${errorDetails || mainError}
   );
 
   const handleSendMessage = useCallback(
-    async (messageContent: string) => {
-      await sendMessage(messageContent);
+    async (messageContent: string, images?: PastedImage[]) => {
+      await sendMessage(messageContent, images);
     },
     [sendMessage],
   );

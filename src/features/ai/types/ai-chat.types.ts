@@ -120,6 +120,9 @@ export interface AIChatInputBarProps {
   buffers: PaneContent[];
   allProjectFiles: FileEntry[];
   isActiveSurface?: boolean;
-  onSendMessage: (message: string) => Promise<void>;
+  onSendMessage: (
+    message: string,
+    images?: import("@/features/ai/types/ai-chat-store.types").PastedImage[],
+  ) => Promise<void>;
   onStopStreaming: () => void;
 }

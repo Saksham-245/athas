@@ -194,6 +194,22 @@ describe("settings normalization", () => {
         aiModelId: "grok-code-fast-1",
       }).aiModelId,
     ).toBe("grok-build-0.1");
+
+    expect(
+      normalizeSettings({
+        ...getDefaultSettingsSnapshot(),
+        aiProviderId: "grok",
+        aiModelId: "grok-4.20-0309-reasoning",
+      }).aiModelId,
+    ).toBe("grok-4.20-reasoning");
+
+    expect(
+      normalizeSettings({
+        ...getDefaultSettingsSnapshot(),
+        aiProviderId: "grok",
+        aiModelId: "grok-4",
+      }).aiModelId,
+    ).toBe("grok-4.6");
   });
 
   it("preserves supported marketplace skill metadata", () => {

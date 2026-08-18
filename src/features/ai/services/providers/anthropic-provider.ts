@@ -1,3 +1,4 @@
+import { getMessageTextContent } from "@/features/ai/lib/vision-attachments";
 import {
   AIProvider,
   type ProviderHeaders,
@@ -61,10 +62,10 @@ export class AnthropicProvider extends AIProvider {
       model: request.modelId,
       max_tokens: request.maxTokens,
       stream: true,
-      ...(systemMessage ? { system: systemMessage.content } : {}),
+      ...(systemMessage ? { system: getMessageTextContent(systemMessage.content) } : {}),
       messages: nonSystemMessages.map((m) => ({
         role: m.role,
-        content: m.content,
+        content: getMessageTextContent(m.content),
       })),
     };
   }

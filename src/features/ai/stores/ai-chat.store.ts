@@ -11,9 +11,18 @@ import { fuzzyScore } from "@/features/global-search/utils/fuzzy-search";
 import {
   getProviderApiToken,
   removeProviderApiToken,
+  removeProviderAuthMeta,
   storeProviderApiToken,
   validateProviderApiKey,
 } from "@/features/ai/services/ai-token-service";
+import {
+  XaiAuthError,
+  beginXaiDeviceLogin,
+  completeXaiDeviceLogin,
+  hasGrokOAuthSession,
+  signOutXai as signOutXaiSession,
+  storeGrokApiKeyCredential,
+} from "@/features/ai/services/xai-auth-service";
 import { AI_PROVIDERS } from "@/features/ai/types/providers.types";
 import type { FileEntry } from "@/features/file-system/types/app.types";
 import {
@@ -26,6 +35,8 @@ import {
 import { useAuthStore } from "@/features/window/stores/auth.store";
 import { useProjectStore } from "@/features/window/stores/project.store";
 import type { AIChatActions, AIChatState } from "../types/ai-chat-store.types";
+
+let xaiSignInAbortController: AbortController | null = null;
 
 const getCurrentWorkspacePath = () => useProjectStore.getState().rootFolderPath || null;
 
@@ -94,6 +105,13 @@ export const useAIChatStore = create<AIChatState & AIChatActions>()(
 
         providerApiKeys: new Map<string, boolean>(),
         apiKeyModalState: { isOpen: false, providerId: null },
+        grokAuth: {
+          hasOAuthSession: false,
+          isSigningIn: false,
+          userCode: null,
+          verificationUri: null,
+          error: null,
+        },
         dynamicModels: {},
 
         mentionState: {
@@ -571,10 +589,12 @@ export const useAIChatStore = create<AIChatState & AIChatActions>()(
           const subscription = useAuthStore.getState().subscription;
           const newApiKeyMap = await buildProviderApiKeyMap(subscription);
           const currentProviderId = useSettingsStore.getState().settings.aiProviderId;
+          const hasOAuthSession = await hasGrokOAuthSession();
 
           set((state) => {
             state.providerApiKeys = newApiKeyMap;
             state.hasApiKey = getProviderAccessFromMap(currentProviderId, newApiKeyMap);
+            state.grokAuth.hasOAuthSession = hasOAuthSession;
           });
         },
 
@@ -582,7 +602,11 @@ export const useAIChatStore = create<AIChatState & AIChatActions>()(
           try {
             const isValid = await validateProviderApiKey(providerId, apiKey);
             if (isValid) {
-              await storeProviderApiToken(providerId, apiKey);
+              if (providerId === "grok") {
+                await storeGrokApiKeyCredential(apiKey);
+              } else {
+                await storeProviderApiToken(providerId, apiKey);
+              }
               const subscription = useAuthStore.getState().subscription;
 
               const newApiKeyMap = await buildProviderApiKeyMap(subscription);
@@ -590,6 +614,10 @@ export const useAIChatStore = create<AIChatState & AIChatActions>()(
               set((state) => {
                 state.providerApiKeys = newApiKeyMap;
                 state.hasApiKey = getProviderAccessFromMap(currentProviderId, newApiKeyMap);
+                if (providerId === "grok") {
+                  state.grokAuth.hasOAuthSession = false;
+                  state.grokAuth.error = null;
+                }
               });
 
               return true;
@@ -604,6 +632,7 @@ export const useAIChatStore = create<AIChatState & AIChatActions>()(
         removeApiKey: async (providerId) => {
           try {
             await removeProviderApiToken(providerId);
+            await removeProviderAuthMeta(providerId);
             const subscription = useAuthStore.getState().subscription;
 
             const newApiKeyMap = await buildProviderApiKeyMap(subscription);
@@ -611,6 +640,10 @@ export const useAIChatStore = create<AIChatState & AIChatActions>()(
             set((state) => {
               state.providerApiKeys = newApiKeyMap;
               state.hasApiKey = getProviderAccessFromMap(currentProviderId, newApiKeyMap);
+              if (providerId === "grok") {
+                state.grokAuth.hasOAuthSession = false;
+                state.grokAuth.error = null;
+              }
             });
           } catch (error) {
             console.error("Error removing API key:", error);
@@ -620,6 +653,115 @@ export const useAIChatStore = create<AIChatState & AIChatActions>()(
 
         hasProviderApiKey: (providerId) => {
           return get().providerApiKeys.get(providerId) || false;
+        },
+
+        checkGrokAuthSession: async () => {
+          try {
+            const hasOAuthSession = await hasGrokOAuthSession();
+            set((state) => {
+              state.grokAuth.hasOAuthSession = hasOAuthSession;
+            });
+          } catch (error) {
+            console.error("Error checking Grok OAuth session:", error);
+            set((state) => {
+              state.grokAuth.hasOAuthSession = false;
+            });
+          }
+        },
+
+        signInWithXai: async () => {
+          if (get().grokAuth.isSigningIn) {
+            return false;
+          }
+
+          xaiSignInAbortController?.abort();
+          const abortController = new AbortController();
+          xaiSignInAbortController = abortController;
+
+          set((state) => {
+            state.grokAuth.isSigningIn = true;
+            state.grokAuth.error = null;
+            state.grokAuth.userCode = null;
+            state.grokAuth.verificationUri = null;
+          });
+
+          try {
+            const session = await beginXaiDeviceLogin();
+            set((state) => {
+              state.grokAuth.userCode = session.userCode;
+              state.grokAuth.verificationUri =
+                session.verificationUriComplete || session.verificationUri;
+            });
+
+            await completeXaiDeviceLogin(session, {
+              signal: abortController.signal,
+              openBrowser: true,
+            });
+
+            const subscription = useAuthStore.getState().subscription;
+            const newApiKeyMap = await buildProviderApiKeyMap(subscription);
+            const currentProviderId = useSettingsStore.getState().settings.aiProviderId;
+            set((state) => {
+              state.providerApiKeys = newApiKeyMap;
+              state.hasApiKey = getProviderAccessFromMap(currentProviderId, newApiKeyMap);
+              state.grokAuth.hasOAuthSession = true;
+              state.grokAuth.isSigningIn = false;
+              state.grokAuth.error = null;
+            });
+            return true;
+          } catch (error) {
+            const message =
+              error instanceof XaiAuthError
+                ? error.message
+                : error instanceof Error
+                  ? error.message
+                  : "Failed to sign in with xAI.";
+            const wasCancelled = error instanceof XaiAuthError && error.code === "cancelled";
+            set((state) => {
+              state.grokAuth.isSigningIn = false;
+              state.grokAuth.userCode = null;
+              state.grokAuth.verificationUri = null;
+              state.grokAuth.error = wasCancelled ? null : message;
+            });
+            if (!wasCancelled) {
+              console.error("xAI sign-in failed:", error);
+            }
+            return false;
+          } finally {
+            if (xaiSignInAbortController === abortController) {
+              xaiSignInAbortController = null;
+            }
+          }
+        },
+
+        cancelXaiSignIn: () => {
+          xaiSignInAbortController?.abort();
+          xaiSignInAbortController = null;
+          set((state) => {
+            state.grokAuth.isSigningIn = false;
+            state.grokAuth.userCode = null;
+            state.grokAuth.verificationUri = null;
+          });
+        },
+
+        signOutXai: async () => {
+          try {
+            await signOutXaiSession();
+            const subscription = useAuthStore.getState().subscription;
+            const newApiKeyMap = await buildProviderApiKeyMap(subscription);
+            const currentProviderId = useSettingsStore.getState().settings.aiProviderId;
+            set((state) => {
+              state.providerApiKeys = newApiKeyMap;
+              state.hasApiKey = getProviderAccessFromMap(currentProviderId, newApiKeyMap);
+              state.grokAuth.hasOAuthSession = false;
+              state.grokAuth.error = null;
+              state.grokAuth.userCode = null;
+              state.grokAuth.verificationUri = null;
+            });
+          } catch (error) {
+            console.error("Error signing out of xAI:", error);
+            throw error;
+          }
         },
 
         setDynamicModels: (providerId, models) =>

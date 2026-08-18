@@ -154,33 +154,62 @@ export const buildContextPrompt = (context: ContextInfo): string => {
     }
   }
 
-  // Selected project files for context
+  // Selected project files / external folders for context
   if (context.selectedProjectFiles && context.selectedProjectFiles.length > 0) {
+    const workspacePaths: string[] = [];
+    const externalPaths: string[] = [];
+
+    for (const filePath of context.selectedProjectFiles) {
+      if (context.projectRoot && filePath.startsWith(context.projectRoot)) {
+        workspacePaths.push(filePath);
+      } else {
+        externalPaths.push(filePath);
+      }
+    }
+
     if (isAcpAgent) {
       // ACP agents can read files themselves, so provide paths instead of full content.
-      const filePaths = context.selectedProjectFiles
-        .map((filePath) => {
-          const relativePath =
-            context.projectRoot && filePath.startsWith(context.projectRoot)
-              ? filePath.slice(context.projectRoot.length + 1)
-              : filePath;
-          return relativePath;
-        })
-        .slice(0, 20);
+      const formatPath = (filePath: string) =>
+        context.projectRoot && filePath.startsWith(context.projectRoot)
+          ? filePath.slice(context.projectRoot.length + 1)
+          : filePath;
 
-      contextPrompt += `\n\nSelected context files:\n${filePaths.map((p) => `- ${p}`).join("\n")}`;
-      if (context.selectedProjectFiles.length > 20) {
-        contextPrompt += `\n... and ${context.selectedProjectFiles.length - 20} more`;
+      if (workspacePaths.length > 0) {
+        const filePaths = workspacePaths.map(formatPath).slice(0, 20);
+        contextPrompt += `\n\nSelected workspace context:\n${filePaths.map((p) => `- ${p}`).join("\n")}`;
+        if (workspacePaths.length > 20) {
+          contextPrompt += `\n... and ${workspacePaths.length - 20} more`;
+        }
+      }
+
+      if (externalPaths.length > 0) {
+        const filePaths = externalPaths.slice(0, 20);
+        contextPrompt += `\n\nSelected external context (outside current workspace):\n${filePaths
+          .map((p) => `- ${p}`)
+          .join("\n")}`;
+        if (externalPaths.length > 20) {
+          contextPrompt += `\n... and ${externalPaths.length - 20} more`;
+        }
       }
     } else {
-      // For other providers, list file names only
-      const fileNames = context.selectedProjectFiles
-        .map((filePath) => filePath.split("/").pop() || "Unknown")
-        .slice(0, 20);
+      if (workspacePaths.length > 0) {
+        const fileNames = workspacePaths
+          .map((filePath) => filePath.split("/").pop() || "Unknown")
+          .slice(0, 20);
+        contextPrompt += `\n\nSelected workspace context files: ${fileNames.join(", ")}`;
+        if (workspacePaths.length > 20) {
+          contextPrompt += ` and ${workspacePaths.length - 20} more`;
+        }
+      }
 
-      contextPrompt += `\n\nSelected context files: ${fileNames.join(", ")}`;
-      if (context.selectedProjectFiles.length > 20) {
-        contextPrompt += ` and ${context.selectedProjectFiles.length - 20} more`;
+      if (externalPaths.length > 0) {
+        const filePaths = externalPaths.slice(0, 20);
+        contextPrompt += `\n\nSelected external context (outside current workspace):\n${filePaths
+          .map((p) => `- ${p}`)
+          .join("\n")}`;
+        if (externalPaths.length > 20) {
+          contextPrompt += `\n... and ${externalPaths.length - 20} more`;
+        }
       }
     }
   }

@@ -55,14 +55,16 @@ export function isExternalFileDragTypeList(types: Iterable<string> | null | unde
   return Array.from(types).includes("Files");
 }
 
-export type ExternalFileDropRoute = "global" | "local" | "terminal";
+export type ExternalFileDropRoute = "global" | "local" | "terminal" | "ai-context";
+
+export const AI_CONTEXT_EXTERNAL_FILES_DROPPED_EVENT = "athas-ai-context-external-files-dropped";
 
 const TERMINAL_DROP_TARGET_SELECTOR = "[data-terminal-drop-target]";
+const AI_CONTEXT_DROP_TARGET_SELECTOR = "[data-ai-context-drop-target]";
 const LOCAL_DROP_TARGET_SELECTOR = [
   "[data-external-file-drop-scope]",
   "[data-pane-container]",
   "[data-bottom-pane-drop-target]",
-  "[data-ai-context-drop-target]",
 ].join(",");
 
 export function getExternalFileDropRoute(
@@ -70,6 +72,7 @@ export function getExternalFileDropRoute(
 ): ExternalFileDropRoute {
   if (!target) return "global";
   if (target.closest(TERMINAL_DROP_TARGET_SELECTOR)) return "terminal";
+  if (target.closest(AI_CONTEXT_DROP_TARGET_SELECTOR)) return "ai-context";
   if (target.closest(LOCAL_DROP_TARGET_SELECTOR)) return "local";
   return "global";
 }

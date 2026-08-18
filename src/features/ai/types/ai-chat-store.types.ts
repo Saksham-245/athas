@@ -74,6 +74,13 @@ export interface AIChatState {
   // Provider API keys state
   providerApiKeys: Map<string, boolean>;
   apiKeyModalState: { isOpen: boolean; providerId: string | null };
+  grokAuth: {
+    hasOAuthSession: boolean;
+    isSigningIn: boolean;
+    userCode: string | null;
+    verificationUri: string | null;
+    error: string | null;
+  };
 
   // Dynamic models state
   dynamicModels: Record<string, ProviderModel[]>;
@@ -168,6 +175,10 @@ export interface AIChatActions {
   saveApiKey: (providerId: string, apiKey: string) => Promise<boolean>;
   removeApiKey: (providerId: string) => Promise<void>;
   hasProviderApiKey: (providerId: string) => boolean;
+  checkGrokAuthSession: () => Promise<void>;
+  signInWithXai: () => Promise<boolean>;
+  cancelXaiSignIn: () => void;
+  signOutXai: () => Promise<void>;
 
   // Dynamic models actions
   setDynamicModels: (providerId: string, models: ProviderModel[]) => void;

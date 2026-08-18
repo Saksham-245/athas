@@ -44,6 +44,7 @@ import {
   type FooterLeadingItemId,
   type FooterTrailingItemId,
 } from "@/features/layout/config/item-order";
+import { AiUsageFooterItem } from "@/features/layout/components/footer/ai-usage-footer-item";
 import { useFileSystemStore } from "../../../file-system/stores/file-system.store";
 
 type FooterItem<T extends string> = {
@@ -491,6 +492,11 @@ const Footer = () => {
           },
         ]
       : []),
+    {
+      id: "ai-usage",
+      label: "AI Usage",
+      content: <AiUsageFooterItem />,
+    },
     {
       id: "notifications",
       label: "Notifications",

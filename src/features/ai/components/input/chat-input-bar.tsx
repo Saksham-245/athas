@@ -13,6 +13,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { shouldIgnoreFile } from "@/features/quick-open/utils/file-filtering";
 import { classifySessionConfigOption } from "@/features/ai/lib/session-config-option-classifier";
 import { AI_CHAT_INSERT_SKILL_EVENT } from "@/features/ai/lib/skill-events";
+import { imageContentFromFile } from "@/features/ai/lib/vision-attachments";
 import { useAIChatStore } from "@/features/ai/stores/ai-chat.store";
 import type { InlineDropdownPosition } from "@/features/ai/types/ai-chat-store.types";
 import type { AIChatSkill } from "@/features/ai/types/skills.types";
@@ -20,6 +21,10 @@ import type { SlashCommand } from "@/features/ai/types/acp.types";
 import type { AIChatInputBarProps } from "@/features/ai/types/ai-chat.types";
 import type { FileEntry } from "@/features/file-system/types/app.types";
 import { getProviderById } from "@/features/ai/types/providers.types";
+import {
+  AI_CONTEXT_EXTERNAL_FILES_DROPPED_EVENT,
+} from "@/features/file-system/utils/file-system-drop-controller";
+import { extractDroppedFilePaths } from "@/features/file-system/utils/file-system-dropped-paths";
 import { openSidebarResourceBuffer } from "@/features/sidebar-drag/utils/open-sidebar-resource";
 import {
   hasSidebarResourceDragData,
@@ -28,6 +33,7 @@ import {
   type SidebarDragResource,
 } from "@/features/sidebar-drag/utils/sidebar-resource-drag";
 import { useSettingsStore } from "@/features/settings/stores/settings.store";
+import { useProjectStore } from "@/features/window/stores/project.store";
 import Badge from "@/ui/badge";
 import { Button } from "@/ui/button";
 import { SidebarComposerBody, SidebarFooter } from "@/ui/sidebar";
@@ -284,8 +290,27 @@ const AIChatInputBar = memo(function AIChatInputBar({
       window.removeEventListener(SIDEBAR_RESOURCE_DROP_ON_AI_EVENT, handleSidebarResourceDropOnAI);
   }, [addSidebarResourceToContext]);
 
+  useEffect(() => {
+    const handleExternalContextDrop = (event: Event) => {
+      const paths = (event as CustomEvent<{ paths?: string[] }>).detail?.paths || [];
+      for (const path of paths) {
+        addPathToContext(path);
+      }
+    };
+
+    window.addEventListener(AI_CONTEXT_EXTERNAL_FILES_DROPPED_EVENT, handleExternalContextDrop);
+    return () =>
+      window.removeEventListener(AI_CONTEXT_EXTERNAL_FILES_DROPPED_EVENT, handleExternalContextDrop);
+  }, [addPathToContext]);
+
   const handleContextDragOver = useCallback((event: React.DragEvent<HTMLDivElement>) => {
-    if (!hasSidebarResourceDragData(event.dataTransfer)) return;
+    const hasSidebarResource = hasSidebarResourceDragData(event.dataTransfer);
+    const hasImageFiles = Array.from(event.dataTransfer.files || []).some((file) =>
+      file.type.startsWith("image/"),
+    );
+    const hasFilePayload = Array.from(event.dataTransfer.types || []).includes("Files");
+    if (!hasSidebarResource && !hasImageFiles && !hasFilePayload) return;
+
     event.preventDefault();
     event.stopPropagation();
     event.dataTransfer.dropEffect = "copy";
@@ -302,14 +327,35 @@ const AIChatInputBar = memo(function AIChatInputBar({
   const handleContextDrop = useCallback(
     async (event: React.DragEvent<HTMLDivElement>) => {
       const resource = readSidebarResourceDragData(event.dataTransfer);
-      if (!resource) return;
+      const imageFiles = Array.from(event.dataTransfer.files || []).filter((file) =>
+        file.type.startsWith("image/"),
+      );
+      const droppedPaths = extractDroppedFilePaths(event.dataTransfer);
+
+      if (!resource && imageFiles.length === 0 && droppedPaths.length === 0) return;
 
       event.preventDefault();
       event.stopPropagation();
       setIsContextDragOver(false);
-      await addSidebarResourceToContext(resource);
+
+      if (resource) {
+        await addSidebarResourceToContext(resource);
+      }
+
+      for (const file of imageFiles) {
+        try {
+          const image = await imageContentFromFile(file);
+          addPastedImage(image);
+        } catch (error) {
+          console.error("Failed to attach dropped image:", error);
+        }
+      }
+
+      for (const path of droppedPaths) {
+        addPathToContext(path);
+      }
     },
-    [addSidebarResourceToContext],
+    [addPastedImage, addPathToContext, addSidebarResourceToContext],
   );
 
   // Computed state for send button
@@ -534,12 +580,17 @@ const AIChatInputBar = memo(function AIChatInputBar({
         isDirty: buffer.type === "editor" && buffer.isDirty,
       }));
 
-    const fileSelections = Array.from(selectedFilesPaths).map((filePath) => ({
-      type: "file" as const,
-      id: filePath,
-      name: filePath.split("/").pop() || "Unknown",
-      path: filePath,
-    }));
+    const projectRoot = useProjectStore.getState().rootFolderPath || null;
+    const fileSelections = Array.from(selectedFilesPaths).map((filePath) => {
+      const isExternal = !projectRoot || !filePath.startsWith(projectRoot);
+      const baseName = filePath.split("/").pop() || "Unknown";
+      return {
+        type: "file" as const,
+        id: filePath,
+        name: isExternal ? `@ext ${baseName}` : baseName,
+        path: filePath,
+      };
+    });
 
     return [...bufferSelections, ...fileSelections];
   }, [buffers, selectedBufferIds, selectedFilesPaths]);
@@ -1167,8 +1218,7 @@ const AIChatInputBar = memo(function AIChatInputBar({
       inputRef.current.innerHTML = "";
     }
 
-    // Send the captured message (TODO: include images in message)
-    await onSendMessage(currentInput);
+    await onSendMessage(currentInput, currentImages);
   };
 
   const stopVoiceInput = useCallback(() => {
