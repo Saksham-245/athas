@@ -25,6 +25,7 @@ import { getFileDiff } from "../api/git-diff-api";
 import { commitChanges, getGitLog } from "../api/git-commits-api";
 import { pullChanges, pushChanges, type GitRemoteActionResult } from "../api/git-remotes-api";
 import type { GitDiff, GitFile } from "../types/git.types";
+import { resolveCommitMessageAiTarget } from "../utils/commit-message-ai";
 
 interface GitCommitPanelProps {
   stagedFilesCount: number;
@@ -216,11 +217,6 @@ const GitCommitPanel = ({
     if (!repoPath || stagedFilesCount === 0) return;
     setError(null);
 
-    if (!isAuthenticated) {
-      setError("Please sign in to use AI commit message generation.");
-      return;
-    }
-
     const subscriptionStatus = subscription?.status ?? "free";
     const enterprisePolicy = subscription?.enterprise?.policy;
     const managedPolicy = enterprisePolicy?.managedMode ? enterprisePolicy : null;
@@ -241,27 +237,49 @@ const GitCommitPanel = ({
 
     setIsGenerating(true);
     try {
+      const aiTarget = await resolveCommitMessageAiTarget({
+        autocompleteModelId: aiAutocompleteModelId,
+        hasAthasAuth: isAuthenticated,
+      });
+
       const selectedText = await buildCommitMessageContext({
         repoPath,
         currentBranch,
         stagedFiles,
         existingDraftHint,
       });
-      const { editedText } = await requestInlineEdit(
-        {
-          model: aiAutocompleteModelId,
-          beforeSelection: "",
-          selectedText,
-          afterSelection: "",
-          instruction:
-            commitMessageMode === "title"
-              ? "Generate a concise Git commit subject from the staged changes. Return exactly one subject line and nothing else. Keep it under 72 characters when possible. Infer and match the repository's style from recent commit subjects. Do not force conventional commit format unless the recent commits clearly use it."
-              : "Generate a Git commit message from the staged changes. Return a subject line and a short body only when the body adds useful context. Keep the subject under 72 characters when possible. Infer and match the repository's style from recent commit subjects. Do not force conventional commit format unless the recent commits clearly use it.",
-          filePath: getRepoLabel(repoPath),
-          languageId: "git-commit",
-        },
-        { useByok },
-      );
+      const instruction =
+        commitMessageMode === "title"
+          ? "Generate a concise Git commit subject from the staged changes. Return exactly one subject line and nothing else. Keep it under 72 characters when possible. Infer and match the repository's style from recent commit subjects. Do not force conventional commit format unless the recent commits clearly use it."
+          : "Generate a Git commit message from the staged changes. Return a subject line and a short body only when the body adds useful context. Keep the subject under 72 characters when possible. Infer and match the repository's style from recent commit subjects. Do not force conventional commit format unless the recent commits clearly use it.";
+
+      const { editedText } =
+        aiTarget.kind === "grok"
+          ? await requestInlineEdit(
+              {
+                provider: aiTarget.provider,
+                model: aiTarget.model,
+                beforeSelection: "",
+                selectedText,
+                afterSelection: "",
+                instruction,
+                filePath: getRepoLabel(repoPath),
+                languageId: "git-commit",
+              },
+              { useHosted: false, useByok: true },
+            )
+          : await requestInlineEdit(
+              {
+                model: aiTarget.model,
+                beforeSelection: "",
+                selectedText,
+                afterSelection: "",
+                instruction,
+                filePath: getRepoLabel(repoPath),
+                languageId: "git-commit",
+              },
+              { useByok },
+            );
 
       const message = normalizeGeneratedCommitMessage(editedText, commitMessageMode);
       if (!message) {
@@ -272,6 +290,8 @@ const GitCommitPanel = ({
       setCommitMessage(message);
     } catch (generationError) {
       if (generationError instanceof InlineEditError) {
+        setError(generationError.message);
+      } else if (generationError instanceof Error && generationError.message.trim()) {
         setError(generationError.message);
       } else {
         setError("Failed to generate commit message.");
@@ -460,7 +480,10 @@ const GitCommitPanel = ({
               isGenerateModeMenuOpen && "border-border/80 bg-hover/70 text-text",
             )}
           >
-            <Tooltip content="Generate commit message with AI" side="top">
+            <Tooltip
+              content="Generate commit message with AI (uses Grok when signed in with xAI)"
+              side="top"
+            >
               <button
                 type="button"
                 onClick={() => void handleGenerateCommitMessage()}

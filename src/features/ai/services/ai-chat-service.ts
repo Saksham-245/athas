@@ -31,6 +31,12 @@ import { getAuthToken } from "@/features/window/services/auth-api";
 import { useAuthStore } from "@/features/window/stores/auth.store";
 import { getApiBase } from "@/utils/api-base";
 import { AcpStreamHandler } from "./acp-stream-handler";
+import {
+  runAgentHttpToolLoop,
+  shouldUseAgentHttpResponses,
+  toResponsesMcpTools,
+} from "./agent-http";
+import { createSkillAgentHttpTools } from "./agent-http/skill-tools";
 import { buildContextPrompt, buildSystemPrompt } from "../utils/ai-context-builder";
 import { CLAUDE_CODE_TERMINAL_AGENT_ID } from "../lib/claude-code";
 import { setCustomProviderBaseUrl } from "./providers/ai-provider-registry";
@@ -290,13 +296,97 @@ export const getChatCompletionStream = async (
       throw new Error(`Provider implementation not found: ${providerId}`);
     }
 
+    const maxTokens = Math.min(1000, Math.floor(model.maxTokens * 0.25));
+    const temperature = 0.7;
     const streamRequest = {
       modelId,
       messages,
-      maxTokens: Math.min(1000, Math.floor(model.maxTokens * 0.25)),
-      temperature: 0.7,
+      maxTokens,
+      temperature,
       apiKey: apiKey || undefined,
     };
+
+    const skillTools = createSkillAgentHttpTools(settings.aiSkills || []);
+    const remoteMcpTools = await toResponsesMcpTools(settings.aiRemoteMcpServers || []);
+    const useResponsesTools = shouldUseAgentHttpResponses({
+      providerId,
+      mode,
+      supportsResponses: provider.supportsResponses ?? providerImpl.supportsResponses,
+      supportsTools: provider.supportsTools ?? providerImpl.supportsTools,
+      toolsEnabled: !systemPromptOverride,
+      hasSkillTools: skillTools.length > 0,
+      hasRemoteMcp: remoteMcpTools.length > 0,
+    });
+
+    if (useResponsesTools && apiKey) {
+      console.log(
+        `Making ${provider.name} Responses tool request with model ${model.name} (${mode})...`,
+      );
+
+      let activeToken = apiKey;
+      let responsesStartedOutput = false;
+      const runWithToken = async (bearerToken: string) =>
+        runAgentHttpToolLoop({
+          modelId,
+          messages,
+          apiKey: bearerToken,
+          mode,
+          projectRoot: context.projectRoot,
+          maxOutputTokens: Math.min(4000, Math.floor(model.maxTokens * 0.5)),
+          temperature,
+          skills: settings.aiSkills,
+          remoteMcpServers: settings.aiRemoteMcpServers,
+          handlers: {
+            onChunk: (chunk) => {
+              responsesStartedOutput = true;
+              onChunk(chunk);
+            },
+            onComplete,
+            onError,
+            onToolUse: (event) => {
+              responsesStartedOutput = true;
+              onToolUse?.(event);
+            },
+            onToolUpdate,
+            onToolComplete,
+            onPermissionRequest,
+          },
+        });
+
+      try {
+        await runWithToken(activeToken);
+        return;
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
+        const unauthorized = /Responses API error:\s*(401|403)/.test(message);
+        if (providerId === "grok" && unauthorized && !responsesStartedOutput) {
+          const refreshedToken = await getGrokBearerToken({ forceRefresh: true });
+          if (refreshedToken && refreshedToken !== activeToken) {
+            activeToken = refreshedToken;
+            try {
+              await runWithToken(activeToken);
+              return;
+            } catch (retryError: unknown) {
+              const retryMessage =
+                retryError instanceof Error ? retryError.message : String(retryError);
+              console.warn(
+                `${provider.name} Responses retry failed; falling back to chat completions:`,
+                retryMessage,
+              );
+            }
+          }
+        } else if (!responsesStartedOutput) {
+          console.warn(
+            `${provider.name} Responses path failed; falling back to chat completions:`,
+            message,
+          );
+        } else {
+          onError(message);
+          return;
+        }
+        // Fall through to Chat Completions ask path when Responses failed before output.
+      }
+    }
 
     const url = providerImpl.buildUrl ? providerImpl.buildUrl(streamRequest) : provider.apiUrl;
 

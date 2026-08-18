@@ -63,6 +63,11 @@ function initializeProviders(): void {
     apiUrl: "https://api.x.ai/v1/chat/completions",
     requiresApiKey: true,
     maxTokens: 131072,
+    capabilities: {
+      supportsResponses: true,
+      supportsTools: true,
+      supportsRemoteMcp: true,
+    },
   };
   providers.set("grok", new GrokProvider(grokConfig));
 

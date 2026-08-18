@@ -67,6 +67,7 @@ type SyncableSettingsKey =
   | "aiAutocompleteCustomModelId"
   | "aiDefaultSessionMode"
   | "aiSkills"
+  | "aiRemoteMcpServers"
   | "ollamaBaseUrl"
   | "sidebarWidth"
   | "showGitHubPullRequests"
@@ -159,6 +160,7 @@ const SYNCABLE_SETTINGS_KEYS: SyncableSettingsKey[] = [
   "aiAutocompleteCustomModelId",
   "aiDefaultSessionMode",
   "aiSkills",
+  "aiRemoteMcpServers",
   "ollamaBaseUrl",
   "sidebarWidth",
   "showGitHubPullRequests",

@@ -9,7 +9,7 @@ import type { FileEntry } from "@/features/file-system/types/app.types";
 import type { ProviderModel } from "@/features/ai/services/providers/ai-provider-interface";
 
 export type OutputStyle = "default" | "explanatory" | "learning" | "custom";
-export type ChatMode = "chat" | "plan";
+export type ChatMode = "chat" | "plan" | "agent";
 
 export interface AIWorkspaceSessionSnapshot {
   currentChatId: string | null;

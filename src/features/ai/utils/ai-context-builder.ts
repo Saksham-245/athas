@@ -236,6 +236,7 @@ PLAN MODE: You are currently in Plan Mode. This means:
 - Identify potential issues and considerations
 - Provide comprehensive analysis without making changes
 - Use planning language like "would", "could", "should" instead of "will"
+- You may use read-only tools and skills, but not write/edit tools
 
 When creating implementation plans, you MUST use this structured format:
 
@@ -257,13 +258,25 @@ Rules for plans:
 - Use 3-8 steps for most plans
 - Each step should be independently executable
 - Always wrap your plan in [PLAN_BLOCK] tags`;
+  } else if (mode === "agent") {
+    basePrompt += `
+
+AGENT MODE: You are in full Agent Mode. This means:
+- You can inspect the project with built-in tools
+- You can activate installed skills when relevant
+- You can use configured remote MCP servers
+- You can propose file edits with apply_file_edit (user permission required)
+- Prefer tools over guessing when working with project files
+- Make concrete progress and keep answers grounded in tool results`;
   } else {
     basePrompt += `
 
-CHAT MODE: You are in interactive Chat Mode where you can:
-- Analyze and modify code as needed
-- Execute actions and make changes
-- Provide direct implementation solutions`;
+CHAT MODE: You are in Chat Mode. This means:
+- Answer questions directly and concisely
+- You may activate installed skills when useful
+- You may use configured remote MCP servers
+- Do not use local filesystem tools (read/list/search/edit)
+- If the user asks you to modify files or inspect the repo deeply, suggest switching to Agent mode`;
   }
 
   // Output style modifications
@@ -295,12 +308,17 @@ Key capabilities:
 - Code generation and refactoring
 - Architecture and design guidance
 - Access to selected project files for comprehensive context
-- Opening files in the editor (files are automatically displayed when read)
+- Available capabilities depend on mode:
+- Chat: skills + remote MCP only
+- Plan: read-only project tools + skills
+- Agent: project tools + skills + remote MCP + gated file edits
 
-File opening behavior:
-- When asked to "open", "show", or "view" a file, use the Read tool to open it in the editor
-- If the exact path is unknown, first use Glob to locate the file, then use Read to open it
-- If multiple files match, list them and ask the user to specify which one to open
+Tool usage behavior:
+- Prefer tools over guessing when inspecting project files or directories
+- Use read_file/list_dir/search_files/get_open_buffers only when those tools are available
+- Activate skill_* tools when a matching installed skill clearly helps
+- Use apply_file_edit only in Agent mode and only after permission
+- After tool results arrive, continue with a concise answer grounded in those results
 
 Guidelines:
 - Be concise but thorough in your explanations

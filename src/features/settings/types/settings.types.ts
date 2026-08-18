@@ -1,4 +1,5 @@
 import type { CoreFeaturesState } from "./feature.types";
+import type { RemoteMcpServerConfig } from "@/features/ai/types/mcp.types";
 import type { AIChatSkill } from "@/features/ai/types/skills.types";
 import type {
   FooterLeadingItemId,
@@ -88,6 +89,7 @@ export interface Settings {
   aiAutocompleteCustomModelId: string;
   aiDefaultSessionMode: string;
   aiSkills: AIChatSkill[];
+  aiRemoteMcpServers: RemoteMcpServerConfig[];
   ollamaBaseUrl: string;
   xaiTeamId: string;
   // Layout

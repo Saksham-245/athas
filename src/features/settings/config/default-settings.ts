@@ -81,6 +81,7 @@ export const defaultSettings: Settings = {
   aiAutocompleteCustomModelId: "",
   aiDefaultSessionMode: "",
   aiSkills: [],
+  aiRemoteMcpServers: [],
   ollamaBaseUrl: "http://localhost:11434",
   xaiTeamId: "",
   // Layout
@@ -173,6 +174,11 @@ export function getDefaultSettingsSnapshot(): Settings {
     footerLeadingItemsOrder: [...defaultSettings.footerLeadingItemsOrder],
     footerTrailingItemsOrder: [...defaultSettings.footerTrailingItemsOrder],
     aiSkills: defaultSettings.aiSkills.map((skill) => ({ ...skill })),
+    aiRemoteMcpServers: defaultSettings.aiRemoteMcpServers.map((server) => ({
+      ...server,
+      headers: server.headers ? { ...server.headers } : undefined,
+      allowedTools: server.allowedTools ? [...server.allowedTools] : undefined,
+    })),
     uiFontSize: normalizeUiFontSize(defaultSettings.uiFontSize),
   };
 }

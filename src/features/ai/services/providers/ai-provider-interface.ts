@@ -1,11 +1,18 @@
 import type { AIMessage } from "@/features/ai/types/messages.types";
 
+export interface ProviderCapabilities {
+  supportsResponses?: boolean;
+  supportsTools?: boolean;
+  supportsRemoteMcp?: boolean;
+}
+
 export interface ProviderConfig {
   id: string;
   name: string;
   apiUrl: string;
   requiresApiKey: boolean;
   maxTokens: number;
+  capabilities?: ProviderCapabilities;
 }
 
 export interface ProviderHeaders {
@@ -57,5 +64,21 @@ export abstract class AIProvider {
 
   get requiresApiKey(): boolean {
     return this.config.requiresApiKey;
+  }
+
+  get capabilities(): ProviderCapabilities {
+    return this.config.capabilities ?? {};
+  }
+
+  get supportsResponses(): boolean {
+    return this.capabilities.supportsResponses === true;
+  }
+
+  get supportsTools(): boolean {
+    return this.capabilities.supportsTools === true;
+  }
+
+  get supportsRemoteMcp(): boolean {
+    return this.capabilities.supportsRemoteMcp === true;
   }
 }

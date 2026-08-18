@@ -52,6 +52,15 @@ describe("parseDeepLinkAction", () => {
     });
   });
 
+  it("maps MCP OAuth callback URLs", () => {
+    expect(
+      parseDeepLinkAction("athas://mcp/oauth/callback?code=abc&state=xyz"),
+    ).toEqual({
+      type: "mcpOAuthCallback",
+      url: "athas://mcp/oauth/callback?code=abc&state=xyz",
+    });
+  });
+
   it("drops unsupported schemes and malformed actions", () => {
     expect(parseDeepLinkAction("athas-alpha://open?path=/Users/test/file.ts")).toBeNull();
     expect(parseDeepLinkAction("athas://open")).toBeNull();

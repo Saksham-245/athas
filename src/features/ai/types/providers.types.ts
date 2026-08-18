@@ -4,6 +4,12 @@ interface ModelProvider {
   apiUrl: string;
   requiresApiKey: boolean;
   requiresAuth?: boolean;
+  /** Supports xAI/OpenAI Responses API (`/v1/responses`) for tools/MCP. */
+  supportsResponses?: boolean;
+  /** Can advertise and execute client-side function tools. */
+  supportsTools?: boolean;
+  /** Can declare remote MCP tools on Responses requests. */
+  supportsRemoteMcp?: boolean;
   models: Model[];
 }
 
@@ -159,6 +165,9 @@ export const AI_PROVIDERS: ModelProvider[] = [
     apiUrl: "https://api.x.ai/v1/chat/completions",
     requiresApiKey: true,
     requiresAuth: true,
+    supportsResponses: true,
+    supportsTools: true,
+    supportsRemoteMcp: true,
     models: [
       {
         id: "grok-4.6",

@@ -1,3 +1,4 @@
+import { normalizeRemoteMcpServers } from "@/features/ai/services/agent-http/mcp-remote-tools";
 import { getProviderById } from "@/features/ai/types/providers.types";
 import { isKeybindingPreset } from "@/features/keymaps/defaults/keybinding-presets";
 import { normalizeFileTreeDensity } from "@/features/file-explorer/lib/file-tree-density";
@@ -330,6 +331,9 @@ function normalizeAISettings(settings: Settings): Settings {
   normalizedSettings.aiAutocompleteCustomModelId =
     normalizedSettings.aiAutocompleteCustomModelId?.trim() || "";
   normalizedSettings.aiSkills = normalizeAISkills(normalizedSettings.aiSkills);
+  normalizedSettings.aiRemoteMcpServers = normalizeRemoteMcpServers(
+    normalizedSettings.aiRemoteMcpServers,
+  );
 
   return normalizedSettings;
 }
@@ -483,6 +487,10 @@ export function normalizeSettingValue<K extends keyof Settings>(
 
   if (key === "aiSkills") {
     return normalizeAISkills(value as Settings["aiSkills"]) as Settings[K];
+  }
+
+  if (key === "aiRemoteMcpServers") {
+    return normalizeRemoteMcpServers(value as Settings["aiRemoteMcpServers"]) as Settings[K];
   }
 
   if (key === "aiCustomBaseUrl") {

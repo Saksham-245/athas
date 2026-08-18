@@ -57,6 +57,8 @@ import {
   removeXaiManagementApiKey,
   storeXaiManagementApiKey,
 } from "@/features/ai/services/xai-usage-service";
+import { SkillsCommand } from "@/features/ai/components/skills/skills-command";
+import { McpMarketplaceSection } from "@/features/settings/components/tabs/mcp-marketplace-section";
 const DEFAULT_AUTOCOMPLETE_MODEL_ID = "mistralai/devstral-small";
 
 function resolveAutocompleteDefaultModelId(models: Array<{ id: string; name: string }>): string {
@@ -112,6 +114,7 @@ export const AISettings = () => {
   const [xaiManagementKeyInput, setXaiManagementKeyInput] = useState("");
   const [hasXaiManagementKey, setHasXaiManagementKey] = useState(false);
   const [isSavingXaiManagementKey, setIsSavingXaiManagementKey] = useState(false);
+  const [isSkillsMarketplaceOpen, setIsSkillsMarketplaceOpen] = useState(false);
 
   const isOllamaCloud = isOllamaCloudUrl(ollamaUrl);
   const needsApiKey = isOllamaCloud;
@@ -823,6 +826,26 @@ export const AISettings = () => {
           </div>
         </SettingRow>
       </Section>
+
+      <Section title="Skills marketplace">
+        <SettingRow
+          label="Browse skills"
+          description="Install reusable AI skills from the Athas skills registry. Installed skills can be auto-activated as tools in Chat/Plan/Agent modes."
+        >
+          <Button type="button" variant="default" onClick={() => setIsSkillsMarketplaceOpen(true)}>
+            Open skills marketplace
+          </Button>
+        </SettingRow>
+      </Section>
+
+      <McpMarketplaceSection />
+
+      <SkillsCommand
+        isOpen={isSkillsMarketplaceOpen}
+        onClose={() => setIsSkillsMarketplaceOpen(false)}
+        onSelectSkill={() => setIsSkillsMarketplaceOpen(false)}
+        initialView="browse"
+      />
 
       {sessionConfigOptions.length > 0 && (
         <Section title="ACP Session">

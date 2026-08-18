@@ -1060,12 +1060,19 @@ details: ${errorDetails || mainError}
         detail: option?.name || (approved ? "allow" : "deny"),
         state: approved ? "success" : "info",
       });
-      await AcpStreamHandler.respondToPermission(
-        currentPermission.requestId,
-        approved,
-        false,
-        optionId,
+
+      const { resolveHttpPermissionRequest } = await import(
+        "@/features/ai/services/agent-http/http-permission-bridge"
       );
+      const resolvedHttp = resolveHttpPermissionRequest(currentPermission.requestId, approved);
+      if (!resolvedHttp) {
+        await AcpStreamHandler.respondToPermission(
+          currentPermission.requestId,
+          approved,
+          false,
+          optionId,
+        );
+      }
     } finally {
       setPermissionQueue((prev) => prev.slice(1));
     }

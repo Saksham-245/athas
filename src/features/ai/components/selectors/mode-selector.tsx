@@ -19,6 +19,7 @@ interface ModeSelectorProps {
 const FALLBACK_MODES: { id: ChatMode; label: string }[] = [
   { id: "chat", label: "Chat" },
   { id: "plan", label: "Plan" },
+  { id: "agent", label: "Agent" },
 ];
 
 export const ModeSelector = memo(function ModeSelector({

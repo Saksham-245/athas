@@ -16,6 +16,7 @@ import {
  *   athas://open?path=...&line=...&type=directory
  *   athas://extension/install/{extensionId}
  *   athas://settings?tab=extensions
+ *   athas://mcp/oauth/callback?code=...&state=...
  */
 export function useDeepLink() {
   useEffect(() => {
@@ -40,6 +41,8 @@ function handleDeepLink(url: string) {
       void enqueueWindowOpenRequest(action.request);
     } else if (action.type === "extensionInstall") {
       installExtensionFromDeepLink(action.extensionId);
+    } else if (action.type === "mcpOAuthCallback") {
+      void completeMcpOAuthFromDeepLink(action.url);
     } else {
       void openSettingsFromDeepLink(action.tab, action.extensionsCategory);
     }
@@ -57,6 +60,7 @@ function isSupportedDeepLinkProtocol(protocol: string) {
 export type DeepLinkAction =
   | { type: "windowOpen"; request: WindowOpenRequest }
   | { type: "extensionInstall"; extensionId: string }
+  | { type: "mcpOAuthCallback"; url: string }
   | { type: "settings"; tab: SettingsTab; extensionsCategory?: Settings["extensionsActiveTab"] };
 
 const SUPPORTED_SETTINGS_TABS = new Set<SettingsTab>([
@@ -137,6 +141,16 @@ export function parseDeepLinkAction(url: string): DeepLinkAction | null {
     };
   }
 
+  if (
+    (segments[0] === "mcp" && segments[1] === "oauth" && segments[2] === "callback") ||
+    (segments[0] === "mcp" && path.includes("oauth/callback"))
+  ) {
+    return {
+      type: "mcpOAuthCallback",
+      url,
+    };
+  }
+
   if (segments[0] === "settings") {
     return {
       type: "settings",
@@ -186,6 +200,21 @@ async function installExtensionFromDeepLink(extensionId: string) {
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
     toast.error(`Failed to install extension: ${message}`);
+  }
+}
+
+async function completeMcpOAuthFromDeepLink(url: string) {
+  try {
+    const { completeMcpOAuthCallback } = await import(
+      "@/features/ai/services/mcp-oauth-service"
+    );
+    const result = await completeMcpOAuthCallback(url);
+    toast.success(`Connected MCP server (${result.serverId})`);
+    const { useUIState } = await import("@/features/window/stores/ui-state.store");
+    useUIState.getState().openSettingsDialog("ai");
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown OAuth error";
+    toast.error(`MCP OAuth failed: ${message}`);
   }
 }
 
